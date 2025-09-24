@@ -85,17 +85,3 @@ export const CONFIG = {
     DETECTOR_DISTANCE_RANGE: [100, 500] // 100 to 500 pixels
     }
 };
-
-function calculatescore(sensorData) {
-// Get cars waiting and wait time from sensor
-const carsWaiting = sensorData.carsWaiting || 0; // number of cars
-const waitTimeSec = (sensorData.waitTime || 0) / 1000; // ms → seconds
-// Formula:
-// Score = (carsWaiting x waitTimeInSeconds) + totalCarsDetected
-const score = (carsWaiting * waitTimesec) + carsWaiting;
-return score
-}
-
-const weScore = this.calculatePairScore('WE', sensorData);
-const nsScore = this.calculatePairScore('NS', sensorData);
-this.adaptiveState.priorityScores = { WE: weScore, NS: nsScore };
