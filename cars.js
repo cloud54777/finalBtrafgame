@@ -2,7 +2,7 @@ import { CONFIG } from "./config.js";
 import { utils } from './utils.js';
 
 export class Car {
-    constructor({ id, direction, intersection, route = null, lane = 0 }) {
+    constructor({ id, direction, intersection, route = null, lane = 0, roadId = null }) {
         this.id = id;
         this.fromDirection = direction;
         this.intersection = intersection;
@@ -11,6 +11,13 @@ export class Car {
         this.lateralPosition = 0; // 0 = center of lane
         this.turnType = this.calculateTurnType();
         this.toDirection = this.route[2];
+        
+        // Physical positioning system
+        this.roadId = roadId || this.getRoadIdFromDirection(direction);
+        this.u = 0; // Longitudinal position (arc length along road centerline)
+        this.v = lane; // Lateral position (lane index)
+        this.dvdt = 0; // Lane change rate
+        this.len = CONFIG.CAR_LENGTH; // Vehicle length in meters
 
         
         // Position and movement
@@ -21,9 +28,9 @@ export class Car {
 
         // Properties
         this.speed = 0;
-        this.maxSpeed = CONFIG.DEFAULT_SETTINGS.CAR_SPEED;
-        this.width = CONFIG.CAR_WIDTH;
-        this.height = CONFIG.CAR_HEIGHT;
+        this.maxSpeed = CONFIG.DEFAULT_SETTINGS.CAR_SPEED * CONFIG.LANE_WIDTH; // Convert to meters/second
+        this.width = CONFIG.CAR_WIDTH / CONFIG.LANE_WIDTH; // Normalize to lane widths
+        this.height = CONFIG.CAR_HEIGHT / CONFIG.LANE_WIDTH; // Normalize to lane widths
         this.color = CONFIG.CAR_COLORS[Math.floor(Math.random() * CONFIG.CAR_COLORS.length)];
 
         // State
@@ -34,13 +41,50 @@ export class Car {
         this.pathProgress = 0;
         this.turnStartTime = null;
         this.isHidden = false;
+        
+        // Initialize physical position
+        this.initializePhysicalPosition();
 
         // Calculate target position for movement
         this.calculateTargetPosition();
     }
+    
+    getRoadIdFromDirection(direction) {
+        switch (direction) {
+            case CONFIG.DIRECTIONS.EAST: return CONFIG.ROAD_IDS.EAST_BOUND;
+            case CONFIG.DIRECTIONS.WEST: return CONFIG.ROAD_IDS.WEST_BOUND;
+            case CONFIG.DIRECTIONS.NORTH: return CONFIG.ROAD_IDS.NORTH_BOUND;
+            case CONFIG.DIRECTIONS.SOUTH: return CONFIG.ROAD_IDS.SOUTH_BOUND;
+            default: return 0;
+        }
+    }
+    
+    initializePhysicalPosition() {
+        // Set initial u position based on spawn point
+        this.u = 10; // Start 10 meters from road beginning
+        this.v = this.lane; // Lane position
+        
+        // Update pixel coordinates from physical position
+        this.updatePixelPosition();
+    }
+    
+    updatePixelPosition() {
+        const pos = this.intersection.getVehiclePosition(this.roadId, this.u, this.v);
+        if (pos) {
+            this.x = pos.x;
+            this.y = pos.y;
+            this.angle = this.intersection.getVehicleOrientation(this.roadId, this.u, this.dvdt, this.speed);
+        }
+    }
 
     calculateTurnType() {
-        // For now, all cars go straight since lanes are for bidirectional traffic
+        // Determine turn type based on lane and random chance
+        const turnChance = Math.random();
+        if (turnChance < CONFIG.DEFAULT_SETTINGS.TURN_RATE / 2) {
+            return CONFIG.TURN_TYPES.LEFT;
+        } else if (turnChance < CONFIG.DEFAULT_SETTINGS.TURN_RATE) {
+            return CONFIG.TURN_TYPES.RIGHT;
+        }
         return CONFIG.TURN_TYPES.STRAIGHT;
     }
 
@@ -51,60 +95,19 @@ export class Car {
         // For straight, stay in current lane
     }
 
-    updateApproaching(dt, lightStates) {
-        this.prepareForTurn();
-        // ...existing code...
-        // ...existing code...
-    }
-
-    updateCrossing(dt) {
-        // Accelerate through intersection
-        this.speed = Math.min(this.maxSpeed * 1.2, this.speed + 40 * dt);
-        // Move along trajectory
-        if (this.turnType === 'left' || this.turnType === 'right') {
-            this.followTurnTrajectory(dt);
-        } else {
-            // Straight
-            this.x += Math.cos(this.angle) * this.speed * dt;
-            this.y += Math.sin(this.angle) * this.speed * dt;
-        }
-        // Check if we've exited the intersection
-        if (!this.isInIntersection && this.pathProgress > 0) {
-            this.state = 'exiting';
-        }
-        this.pathProgress += dt;
-    }
-
-    followTurnTrajectory(dt) {
-        // Use Bezier curve for left/right turns
-        const entry = this.intersection.getPathEntryPoint(this.fromDirection);
-        const exit = this.intersection.exitPoints[this.toDirection];
-        // Control points for Bezier (simple: entry, control1, control2, exit)
-        let control1, control2;
-        if (this.turnType === 'left') {
-            control1 = { x: entry.x - 60, y: entry.y + 60 };
-            control2 = { x: exit.x - 60, y: exit.y - 60 };
-        } else {
-            control1 = { x: entry.x + 60, y: entry.y - 60 };
-            control2 = { x: exit.x + 60, y: exit.y + 60 };
-        }
-        const t = Math.min(this.pathProgress / 1.2, 1); // 1.2s for full turn
-        const pt = utils.getBezierPoint(t, entry, control1, control2, exit);
-        this.x = pt.x;
-        this.y = pt.y;
-        // Update heading
-        if (t < 1) {
-            const nextT = Math.min(t + 0.05, 1);
-            const nextPt = utils.getBezierPoint(nextT, entry, control1, control2, exit);
-            this.angle = utils.getAngle(this.x, this.y, nextPt.x, nextPt.y);
-        }
-    }
-
     calculateToDirection() {
-        // All cars go straight through (opposite direction)
+        // Calculate destination based on turn type
         const directions = [CONFIG.DIRECTIONS.NORTH, CONFIG.DIRECTIONS.EAST, CONFIG.DIRECTIONS.SOUTH, CONFIG.DIRECTIONS.WEST];
         const currentIndex = directions.indexOf(this.fromDirection);
-        return directions[(currentIndex + 2) % 4]; // Always go straight (opposite direction)
+        
+        switch (this.turnType) {
+            case CONFIG.TURN_TYPES.LEFT:
+                return directions[(currentIndex + 1) % 4]; // Turn left
+            case CONFIG.TURN_TYPES.RIGHT:
+                return directions[(currentIndex + 3) % 4]; // Turn right
+            default:
+                return directions[(currentIndex + 2) % 4]; // Go straight
+        }
     }
 
     getInitialAngle() {
@@ -133,6 +136,20 @@ calculateTargetPosition() {
 
     update(deltaTime, lightStates) {
         const dt = deltaTime / 1000; // Convert to seconds
+        
+        // Update physical position first
+        this.updatePhysicalMovement(dt, lightStates);
+        
+        // Update pixel position from physical coordinates
+        this.updatePixelPosition();
+        
+        // Check intersection status
+        this.isInIntersection = this.intersection.isInIntersection(this.x, this.y);
+    }
+    
+    updatePhysicalMovement(dt, lightStates) {
+        const road = this.intersection.roads[this.roadId];
+        if (!road) return;
 
         switch (this.state) {
             case 'approaching':
@@ -151,19 +168,22 @@ calculateTargetPosition() {
                 this.updateExiting(dt);
                 break;
         }
-
-        // Update position based on speed and direction (keep cars in straight lines)
+        
+        // Update longitudinal position
         if (this.speed > 0 && !this.isHidden) {
-            // Move based on the angle the car is facing
-            this.x += Math.cos(this.angle) * this.speed * dt;
-            this.y += Math.sin(this.angle) * this.speed * dt;
+            this.u += this.speed * dt; // Move along road centerline
         }
-
-        // Check if car is in intersection
-        this.isInIntersection = this.intersection.isInIntersection(this.x, this.y);
+        
+        // Update lateral position for lane changes
+        if (Math.abs(this.dvdt) > 0.001) {
+            this.v += this.dvdt * dt;
+            this.v = Math.max(0, Math.min(road.nLanes - 1, this.v)); // Keep in valid lanes
+        }
     }
 
     updateApproaching(dt, lightStates) {
+        this.prepareForTurn();
+        
         const stopLine = this.intersection.getStopLinePosition(this.fromDirection);
         const distanceToStop = this.getDistanceToStopLine(stopLine);
         
@@ -184,7 +204,7 @@ calculateTargetPosition() {
         }
         
         // Continue approaching
-        this.speed = Math.min(this.maxSpeed, this.speed + 30 * dt); // Gradual acceleration
+        this.speed = Math.min(this.maxSpeed, this.speed + 10 * dt); // Gradual acceleration in m/s
         
         // Check if we've reached the intersection
         if (this.isInIntersection) {
@@ -208,33 +228,35 @@ calculateTargetPosition() {
     }
 
     updateCrossing(dt) {
-        // Accelerate through intersection
-        this.speed = Math.min(this.maxSpeed * 1.2, this.speed + 40 * dt);
-        
-        // Check if we need to turn or go straight
+        // Check if we need to follow alternative trajectory for turns
         if (this.turnType !== CONFIG.TURN_TYPES.STRAIGHT) {
-            // Check if we've reached the intersection center
-            const centerX = this.intersection.centerX;
-            const centerY = this.intersection.centerY;
-            const distanceToCenter = Math.sqrt(
-                Math.pow(this.x - centerX, 2) + Math.pow(this.y - centerY, 2)
-            );
-            
-            if (distanceToCenter < 20) { // Close enough to center
-                this.state = 'turning';
-                this.turnStartTime = Date.now();
-                this.isHidden = true;
-                this.speed = 0;
-                return;
-            }
+            this.followAlternativeTrajectory(dt);
         } else {
-            // Straight through - check if we've exited the intersection
-            if (!this.isInIntersection && this.pathProgress > 0) {
-                this.state = 'exiting';
-            }
+            // Accelerate through intersection for straight movement
+            this.speed = Math.min(this.maxSpeed * 1.2, this.speed + 15 * dt);
+        }
+        
+        // Check if we've exited the intersection
+        if (!this.isInIntersection && this.pathProgress > 0) {
+            this.state = 'exiting';
         }
         
         this.pathProgress += dt;
+    }
+    
+    followAlternativeTrajectory(dt) {
+        const road = this.intersection.roads[this.roadId];
+        const altTraj = road.trajAlt.find(traj => 
+            this.u >= traj.umin && this.u <= traj.umax && 
+            this.lane >= traj.laneMin && this.lane <= traj.laneMax
+        );
+        
+        if (altTraj) {
+            // Switch to alternative trajectory
+            this.roadId = altTraj.roadID;
+            this.u = altTraj.umin; // Reset position for new road
+            this.speed = Math.min(this.maxSpeed * 0.8, this.speed); // Slow down for turn
+        }
     }
 
     updateTurning(dt) {
@@ -383,26 +405,12 @@ calculateTargetPosition() {
     }
 
     updateExiting(dt) {
-        // Assign lane after turn
-        if (this.turnType === 'left') this.lane = 0;
-        else if (this.turnType === 'right') this.lane = 1;
-        // For straight, keep lane
-        this.lateralPosition = 0; // Center in lane
-
-        // Update route to next segment (simulate route progression)
-        if (this.route && this.route.length > 1) {
-            this.route = this.route.slice(1);
-        }
-
         // Continue moving at normal speed in the direction we're facing
         this.speed = this.maxSpeed;
 
-        // Check if we've reached the edge of the canvas
-        let hasExited = false;
-
-        // Check if car has exited based on canvas boundaries
-        hasExited = this.x < -50 || this.x > CONFIG.CANVAS_WIDTH + 50 || 
-                   this.y < -50 || this.y > CONFIG.CANVAS_HEIGHT + 50;
+        // Check if we've reached the end of the current road
+        const road = this.intersection.roads[this.roadId];
+        const hasExited = road && this.u >= road.roadLen;
 
         if (hasExited) {
             this.state = 'completed';
@@ -410,24 +418,22 @@ calculateTargetPosition() {
     }
 
     getDistanceToStopLine(stopLine) {
-        // Calculate distance from car to stop line
-        switch (this.fromDirection) {
-            case CONFIG.DIRECTIONS.NORTH:
-                return Math.abs(this.y - stopLine.y1);
-            case CONFIG.DIRECTIONS.EAST:
-                return Math.abs(this.x - stopLine.x1);
-            case CONFIG.DIRECTIONS.SOUTH:
-                return Math.abs(this.y - stopLine.y1);
-            case CONFIG.DIRECTIONS.WEST:
-                return Math.abs(this.x - stopLine.x1);
-            default:
-                return 0;
-        }
+        // Calculate distance based on physical position
+        const road = this.intersection.roads[this.roadId];
+        if (!road) return 0;
+        
+        // Distance to intersection entry point (approximately at u = 100m)
+        const intersectionEntry = 100;
+        return Math.max(0, intersectionEntry - this.u);
     }
 
     render(ctx) {
         // Don't render if car is hidden during turn
         if (this.isHidden) return;
+        
+        // Scale dimensions for rendering
+        const renderWidth = this.width * CONFIG.LANE_WIDTH;
+        const renderHeight = this.height * CONFIG.LANE_WIDTH;
         
         ctx.save();
         // Move to car position and rotate
@@ -435,11 +441,11 @@ calculateTargetPosition() {
         ctx.rotate(this.angle);
         // Draw car body
         ctx.fillStyle = this.color;
-        ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+        ctx.fillRect(-renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
         // Draw car details
         ctx.fillStyle = '#333333';
-        ctx.fillRect(-this.width / 2 + 2, -this.height / 2 + 2, this.width - 4, 3); // Windshield
-        ctx.fillRect(-this.width / 2 + 2, this.height / 2 - 5, this.width - 4, 3); // Rear window
+        ctx.fillRect(-renderWidth / 2 + 2, -renderHeight / 2 + 2, renderWidth - 4, 3); // Windshield
+        ctx.fillRect(-renderWidth / 2 + 2, renderHeight / 2 - 5, renderWidth - 4, 3); // Rear window
         ctx.restore();
     }
 
@@ -468,32 +474,13 @@ calculateTargetPosition() {
         let closestDistance = Infinity;
         
         for (const otherCar of allCars) {
-            if (otherCar.id === this.id || otherCar.fromDirection !== this.fromDirection) {
+            if (otherCar.id === this.id || otherCar.roadId !== this.roadId) {
                 continue; // Skip self and cars from different directions
             }
             
-            // Check if the other car is ahead of this car
-            let isAhead = false;
-            let distance = 0;
-            
-            switch (this.fromDirection) {
-                case CONFIG.DIRECTIONS.NORTH:
-                    isAhead = otherCar.y > this.y;
-                    distance = otherCar.y - this.y;
-                    break;
-                case CONFIG.DIRECTIONS.EAST:
-                    isAhead = otherCar.x < this.x;
-                    distance = this.x - otherCar.x;
-                    break;
-                case CONFIG.DIRECTIONS.SOUTH:
-                    isAhead = otherCar.y < this.y;
-                    distance = this.y - otherCar.y;
-                    break;
-                case CONFIG.DIRECTIONS.WEST:
-                    isAhead = otherCar.x > this.x;
-                    distance = otherCar.x - this.x;
-                    break;
-            }
+            // Check if the other car is ahead based on u position
+            const isAhead = otherCar.u > this.u;
+            const distance = otherCar.u - this.u;
             
             if (isAhead && distance > 0 && distance < closestDistance) {
                 closestDistance = distance;
@@ -507,21 +494,9 @@ calculateTargetPosition() {
     getDistanceToCarAhead(carAhead) {
         if (!carAhead) return Infinity;
         
-        switch (this.fromDirection) {
-            case CONFIG.DIRECTIONS.NORTH:
-                return carAhead.y - this.y;
-            case CONFIG.DIRECTIONS.EAST:
-                return this.x - carAhead.x;
-            case CONFIG.DIRECTIONS.SOUTH:
-                return this.y - carAhead.y;
-            case CONFIG.DIRECTIONS.WEST:
-                return carAhead.x - this.x;
-            default:
-                return Infinity;
-        }
+        // Distance based on physical u position
+        return Math.abs(carAhead.u - this.u);
     }
-
-    // ...existing code...
 }
 
 export class CarManager {
@@ -594,9 +569,20 @@ export class CarManager {
                 id: this.nextCarId++,
                 direction: direction,
                 intersection: this.intersection,
-                lane: lane
+                lane: lane,
+                roadId: this.getRoadIdFromDirection(direction)
             });
             this.cars.push(car);
+        }
+    }
+    
+    getRoadIdFromDirection(direction) {
+        switch (direction) {
+            case CONFIG.DIRECTIONS.EAST: return CONFIG.ROAD_IDS.EAST_BOUND;
+            case CONFIG.DIRECTIONS.WEST: return CONFIG.ROAD_IDS.WEST_BOUND;
+            case CONFIG.DIRECTIONS.NORTH: return CONFIG.ROAD_IDS.NORTH_BOUND;
+            case CONFIG.DIRECTIONS.SOUTH: return CONFIG.ROAD_IDS.SOUTH_BOUND;
+            default: return 0;
         }
     }
 
