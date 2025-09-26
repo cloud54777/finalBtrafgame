@@ -468,7 +468,7 @@ calculateTargetPosition() {
         let closestDistance = Infinity;
         
         for (const otherCar of allCars) {
-            if (otherCar.id === this.id || otherCar.fromDirection !== this.fromDirection || otherCar.lane !== this.lane) {
+            if (otherCar.id === this.id || otherCar.fromDirection !== this.fromDirection) {
                 continue; // Skip self, cars from different directions, and cars in different lanes
             }
             
