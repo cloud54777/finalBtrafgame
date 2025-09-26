@@ -3,49 +3,23 @@ export const CONFIG = {
     CANVAS_WIDTH: 1200,
     CANVAS_HEIGHT: 1200,
 
-    // Physical dimensions (in meters)
-    LANE_WIDTH: 3.0,              // Exactly 3.0 meters per lane
-    N_LANES_MAIN: 2,              // 2 lanes for East-West main roads
-    N_LANES_SEC: 2,               // 2 lanes for North-South secondary roads
-    CAR_LENGTH: 5,                // Cars are 5 meters long
-    CAR_WIDTH: 2.5,               // Cars are 2.5 meters wide
-    TRUCK_LENGTH: 10,             // Trucks are 10 meters long
-    TRUCK_WIDTH: 3,               // Trucks are 3 meters wide
-
-    // Turn radius calculations
-    RADIUS_RIGHT: 7.5,            // (2.0 + 0.5*1) * 3.0 = 7.5 meters
-    RADIUS_LEFT: 11.25,           // 1.5 * 7.5 = 11.25 meters
-
-    // Arc length calculations
-    LEN_RIGHT: 11.78,             // 0.5 * π * 7.5 = 11.78 meters (90° arc)
-    LEN_LEFT: 17.67,              // 0.5 * π * 11.25 = 17.67 meters (90° arc)
-
-    // Center point definition
-    CENTER_X_REL: 0.50,           // 50% from left edge of viewport
-    CENTER_Y_REL: -0.50,          // 50% from bottom edge of viewport
-
-    // Road offsets from intersection center
-    OFFSET_MAIN: 3.0,             // 0.5 * 3.0 * 2 = 3.0 meters
-    OFFSET_SEC: 3.0,              // 0.5 * 3.0 * 2 = 3.0 meters
-    OFFSET_20_TARGET: 4.5,        // (2 - 0.5) * 3.0 = 4.5 meters
-
-    // Rendering settings
-    N_SEGM: 100,                  // Each road divided into exactly 100 segments
-    DU_LINE: 15,                  // 15 meters between lane line segments
-    BOUNDARY_STRIP_WIDTH: 0.9,    // 0.3 × laneWidth = 0.9m
-
-    // Physical coordinate system
-    REF_SIZE_PHYS: 200,           // Reference size in meters
-    ASPECT_RATIO: 1.0,            // Square viewport
-
     // Intersection settings
     INTERSECTION_SIZE: 120,
     ROAD_WIDTH: 60,
+    LANE_WIDTH: 30,
 
     // Car settings
+    CAR_WIDTH: 16,
+    CAR_HEIGHT: 8,
     CAR_COLORS: [
-        "#FF0000", "#00FF00", "#0000FF", "#FFFF00", 
-        "#FFA500", "#FFFFFF", "#000000", "#888888"
+        "#FF0000", // red
+        "#00FF00", // green
+        "#0000FF", // blue
+        "#FFFF00", // yellow
+        "#FFA500", // orange
+        "#FFFFFF", // white
+        "#000000", // black
+        "#888888"  // gray
     ],
 
     // Directions
@@ -81,21 +55,21 @@ export const CONFIG = {
 
     // Default settings
     DEFAULT_SETTINGS: {
-        GREEN_DURATION: 100000,
-        YELLOW_DURATION: 5000,
-        RED_DURATION: 100000,
-        CAR_SPAWN_RATE: 4,
-        CAR_SPEED: 25,
-        TURN_RATE: 0.4,
-        DETECTOR_DISTANCE: 500,
-        MIN_GREEN_TIME: 5000
+        GREEN_DURATION: 100000,      // 100 seconds
+        YELLOW_DURATION: 5000,       // 5 seconds
+        RED_DURATION: 100000,        // 100 seconds
+        CAR_SPAWN_RATE: 4,           // cars per 10 seconds
+        CAR_SPEED: 25,               // pixels per second
+        TURN_RATE: 0.4,              // 40% chance to turn (20% left, 20% right)
+    DETECTOR_DISTANCE: 500,      // Increased range for adaptive mode
+        MIN_GREEN_TIME: 5000         // 5 seconds minimum green
     },
 
     // Turn delays (based on arc length / speed)
     TURN_DELAYS: {
-        LEFT: 2000,
-        RIGHT: 1500,
-        STRAIGHT: 0
+        LEFT: 2000,    // 2 seconds for left turn
+        RIGHT: 1500,   // 1.5 seconds for right turn
+        STRAIGHT: 0    // No delay for straight
     },
 
     // Heading angles in degrees
@@ -106,18 +80,8 @@ export const CONFIG = {
         WEST: 180
     },
 
-    // Road IDs for connection matrix
-    ROAD_IDS: {
-        EAST_BOUND: 0,
-        WEST_BOUND: 1,
-        NORTH_BOUND: 2,
-        SOUTH_BOUND: 4,
-        NORTH_EXIT: 3,
-        SOUTH_EXIT: 5
-    },
-
     // Adaptive mode settings
     ADAPTIVE_SETTINGS: {
-        DETECTOR_DISTANCE_RANGE: [100, 500]
+    DETECTOR_DISTANCE_RANGE: [100, 500] // 100 to 500 pixels
     }
 };
