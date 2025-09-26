@@ -130,32 +130,67 @@ this.stopLines = {
     }
 
     updateSpawnPointsForLanes() {
-        const laneOffset = this.laneWidth / 2;
+        const laneOffset = this.laneWidth / 2;  // 7.5 pixels
         
-        // Create spawn points for bidirectional traffic
-        // Lane 0 = cars going one way, Lane 1 = cars going the opposite way
+        // Create spawn points for 4 lanes each direction
+        // Lanes 0-3 = cars going one way, Lanes 4-7 = cars going opposite way
         this.spawnPointsByLane = {
             [CONFIG.DIRECTIONS.NORTH]: [
-                { x: this.centerX - laneOffset, y: 0 }, // Lane 0 (going south)
-                { x: this.centerX + laneOffset, y: CONFIG.CANVAS_HEIGHT }  // Lane 1 (going north)
+                // Lanes 0-3: Going south (left side of road)
+                { x: this.centerX - laneOffset - 3 * this.laneWidth, y: 0 }, // Lane 0
+                { x: this.centerX - laneOffset - 2 * this.laneWidth, y: 0 }, // Lane 1
+                { x: this.centerX - laneOffset - this.laneWidth, y: 0 },     // Lane 2
+                { x: this.centerX - laneOffset, y: 0 },                      // Lane 3
+                // Lanes 4-7: Going north (right side of road)
+                { x: this.centerX + laneOffset, y: CONFIG.CANVAS_HEIGHT },                      // Lane 4
+                { x: this.centerX + laneOffset + this.laneWidth, y: CONFIG.CANVAS_HEIGHT },     // Lane 5
+                { x: this.centerX + laneOffset + 2 * this.laneWidth, y: CONFIG.CANVAS_HEIGHT }, // Lane 6
+                { x: this.centerX + laneOffset + 3 * this.laneWidth, y: CONFIG.CANVAS_HEIGHT }  // Lane 7
             ],
             [CONFIG.DIRECTIONS.EAST]: [
-                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset }, // Lane 0 (going west)
-                { x: 0, y: this.centerY + laneOffset }  // Lane 1 (going east)
+                // Lanes 0-3: Going west (top side of road)
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - 3 * this.laneWidth }, // Lane 0
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - 2 * this.laneWidth }, // Lane 1
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - this.laneWidth },     // Lane 2
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset },                      // Lane 3
+                // Lanes 4-7: Going east (bottom side of road)
+                { x: 0, y: this.centerY + laneOffset },                      // Lane 4
+                { x: 0, y: this.centerY + laneOffset + this.laneWidth },     // Lane 5
+                { x: 0, y: this.centerY + laneOffset + 2 * this.laneWidth }, // Lane 6
+                { x: 0, y: this.centerY + laneOffset + 3 * this.laneWidth }  // Lane 7
             ],
             [CONFIG.DIRECTIONS.SOUTH]: [
-                { x: this.centerX + laneOffset, y: CONFIG.CANVAS_HEIGHT }, // Lane 0 (going north)
-                { x: this.centerX - laneOffset, y: 0 }  // Lane 1 (going south)
+                // Lanes 0-3: Going north (right side of road)
+                { x: this.centerX + laneOffset + 3 * this.laneWidth, y: CONFIG.CANVAS_HEIGHT }, // Lane 0
+                { x: this.centerX + laneOffset + 2 * this.laneWidth, y: CONFIG.CANVAS_HEIGHT }, // Lane 1
+                { x: this.centerX + laneOffset + this.laneWidth, y: CONFIG.CANVAS_HEIGHT },     // Lane 2
+                { x: this.centerX + laneOffset, y: CONFIG.CANVAS_HEIGHT },                      // Lane 3
+                // Lanes 4-7: Going south (left side of road)
+                { x: this.centerX - laneOffset, y: 0 },                      // Lane 4
+                { x: this.centerX - laneOffset - this.laneWidth, y: 0 },     // Lane 5
+                { x: this.centerX - laneOffset - 2 * this.laneWidth, y: 0 }, // Lane 6
+                { x: this.centerX - laneOffset - 3 * this.laneWidth, y: 0 }  // Lane 7
             ],
             [CONFIG.DIRECTIONS.WEST]: [
-                { x: 0, y: this.centerY + laneOffset }, // Lane 0 (going east)
-                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset }  // Lane 1 (going west)
+                // Lanes 0-3: Going east (bottom side of road)
+                { x: 0, y: this.centerY + laneOffset + 3 * this.laneWidth }, // Lane 0
+                { x: 0, y: this.centerY + laneOffset + 2 * this.laneWidth }, // Lane 1
+                { x: 0, y: this.centerY + laneOffset + this.laneWidth },     // Lane 2
+                { x: 0, y: this.centerY + laneOffset },                      // Lane 3
+                // Lanes 4-7: Going west (top side of road)
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset },                      // Lane 4
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - this.laneWidth },     // Lane 5
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - 2 * this.laneWidth }, // Lane 6
+                { x: CONFIG.CANVAS_WIDTH, y: this.centerY - laneOffset - 3 * this.laneWidth }  // Lane 7
             ]
         };
     }
 
     getSpawnPointForLane(direction, lane) {
-        return this.spawnPointsByLane[direction] ? this.spawnPointsByLane[direction][lane] : this.spawnPoints[direction];
+        if (this.spawnPointsByLane[direction] && this.spawnPointsByLane[direction][lane]) {
+            return this.spawnPointsByLane[direction][lane];
+        }
+        return this.spawnPoints[direction];
     }
 
     render(ctx) {
@@ -245,20 +280,58 @@ drawIntersection(ctx) {
 
         const halfRoad = this.roadWidth / 2;
         
-        // Vertical center line (North-South road)
+        // Vertical lane markings (North-South road)
         ctx.beginPath();
+        // Center divider
         ctx.moveTo(this.centerX, 0);
         ctx.lineTo(this.centerX, this.centerY - halfRoad);
         ctx.moveTo(this.centerX, this.centerY + halfRoad);
         ctx.lineTo(this.centerX, CONFIG.CANVAS_HEIGHT);
+        
+        // Lane dividers for southbound lanes (left side)
+        for (let i = 1; i < 4; i++) {
+            const x = this.centerX - i * this.laneWidth;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.centerY - halfRoad);
+            ctx.moveTo(x, this.centerY + halfRoad);
+            ctx.lineTo(x, CONFIG.CANVAS_HEIGHT);
+        }
+        
+        // Lane dividers for northbound lanes (right side)
+        for (let i = 1; i < 4; i++) {
+            const x = this.centerX + i * this.laneWidth;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.centerY - halfRoad);
+            ctx.moveTo(x, this.centerY + halfRoad);
+            ctx.lineTo(x, CONFIG.CANVAS_HEIGHT);
+        }
         ctx.stroke();
         
-        // Horizontal center line (East-West road)
+        // Horizontal lane markings (East-West road)
         ctx.beginPath();
+        // Center divider
         ctx.moveTo(0, this.centerY);
         ctx.lineTo(this.centerX - halfRoad, this.centerY);
         ctx.moveTo(this.centerX + halfRoad, this.centerY);
         ctx.lineTo(CONFIG.CANVAS_WIDTH, this.centerY);
+        
+        // Lane dividers for westbound lanes (top side)
+        for (let i = 1; i < 4; i++) {
+            const y = this.centerY - i * this.laneWidth;
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.centerX - halfRoad, y);
+            ctx.moveTo(this.centerX + halfRoad, y);
+            ctx.lineTo(CONFIG.CANVAS_WIDTH, y);
+        }
+        
+        // Lane dividers for eastbound lanes (bottom side)
+        for (let i = 1; i < 4; i++) {
+            const y = this.centerY + i * this.laneWidth;
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.centerX - halfRoad, y);
+            ctx.moveTo(this.centerX + halfRoad, y);
+            ctx.lineTo(CONFIG.CANVAS_WIDTH, y);
+        }
         ctx.stroke();
 
         ctx.setLineDash([]);

@@ -5,8 +5,8 @@ export const CONFIG = {
 
     // Intersection settings
     INTERSECTION_SIZE: 120,
-    ROAD_WIDTH: 60,
-    LANE_WIDTH: 30,
+    ROAD_WIDTH: 120,  // Double width for 4 lanes each direction
+    LANE_WIDTH: 15,   // Half width to fit 4 lanes in same space
 
     // Car settings
     CAR_WIDTH: 16,
